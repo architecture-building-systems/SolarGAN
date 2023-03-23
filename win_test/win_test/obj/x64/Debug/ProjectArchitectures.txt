@@ -1,0 +1,1 @@
+C:\Users\phili\Documents\GitHub\SolarGAN\win_test\win_test\win_test.csproj;x64
