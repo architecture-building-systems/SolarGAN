@@ -37,6 +37,7 @@ namespace win_test
             learningModel.binding = new LearningModelBinding(learningModel.session);
             return learningModel;
         }
+
         public async Task<dvaeOutput> EvaluateAsync(dvaeInput input)
         {
             binding.Bind("input", input.modelInput);

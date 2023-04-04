@@ -30,13 +30,13 @@
     <AppXManifest Include="C:\Users\phili\Documents\GitHub\SolarGAN\win_test\win_test\bin\x64\Debug\Core\AppxManifest.xml">
       <PackagePath>AppxManifest.xml</PackagePath>
       <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>
-      <Modified>2023-03-23T12:40:30.357</Modified>
+      <Modified>2023-03-23T15:18:31.938</Modified>
     </AppXManifest>
   </ItemGroup>
   <ItemGroup>
     <AppxPackagedFile Include="C:\Users\phili\Documents\GitHub\SolarGAN\win_test\win_test\bin\x64\Debug\win_test.exe">
       <PackagePath>entrypoint\win_test.exe</PackagePath>
-      <Modified>2023-03-23T12:40:29.810</Modified>
+      <Modified>2023-03-23T15:18:31.389</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Program Files %28x86%29\Microsoft SDKs\UWPNuGetPackages\runtime.win10-x64.microsoft.netcore.universalwindowsplatform\6.2.14\runtimes\win10-x64\lib\uap10.0.15138\System.Runtime.dll">
       <PackagePath>System.Runtime.dll</PackagePath>
@@ -106,11 +106,11 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\phili\Documents\GitHub\SolarGAN\win_test\win_test\bin\x64\Debug\resources.pri">
       <PackagePath>resources.pri</PackagePath>
-      <Modified>2023-03-23T12:35:47.377</Modified>
+      <Modified>2023-03-23T15:18:31.613</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\phili\Documents\GitHub\SolarGAN\win_test\win_test\bin\x64\Debug\Core\win_test.exe">
       <PackagePath>win_test.exe</PackagePath>
-      <Modified>2023-03-23T12:40:30.355</Modified>
+      <Modified>2023-03-23T15:18:31.936</Modified>
     </AppxPackagedFile>
   </ItemGroup>
   <ItemGroup>
