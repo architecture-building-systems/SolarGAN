@@ -6,6 +6,21 @@ from keras.applications import ResNet50
 import numpy as np
 import cv2
 
+import argparse
+import os
+from os import path
+import copy
+from tqdm import tqdm
+import torch
+from torch import nn
+from gan_training import utils
+from gan_training.checkpoints import CheckpointIO
+from gan_training.distributions import get_ydist, get_zdist
+from gan_training.eval import Evaluator
+from gan_training.config import (
+    load_config, build_models
+)
+
 from flask import Flask
 import ghhops_server as hs
 
@@ -15,54 +30,84 @@ import rhino3dm
 app = Flask(__name__)
 hops = hs.Hops(app)
 
-@hops.component(
-    "/pointat",
-    name="PointAt",
-    description="Get point along curve",
-    icon="test_icon.png",
-    inputs=[
-        hs.HopsCurve("Curve","C","Curve to evaluate"),
-        hs.HopsNumber("t", "t", "Parameter on curve to evaluate"),
-    ],
-    outputs=[
-        hs.HopsPoint("p", "p", "Point on curve at t")
-    ],
-)
+def load_simple_im(path):
+    img =  cv2.imread(path)
+    gt = np.mean(img,axis=2)/256
+    gt = (gt-0.5)*2
+    img_tensor = torch.from_numpy(gt).unsqueeze(0).float()
+    return img_tensor
 
-def pointat(curve: rhino3dm.Curve, t):
-    return curve.PointAt(t)
+def get_one_hot(label, N):
+    size = list(label.size())
+    label = label.view(-1).cpu()   #reshape to a long vector
+    ones = torch.sparse.torch.eye(N)
+    ones = ones.index_select(0, label)   #turn to one hot
+    size.append(N)  #reshape to h*w*channel classes
+    return ones.view(*size).squeeze(1).permute(0,3,1,2)
+
+def discretize_to_order_labels(t):
+    tensor=t.cpu()
+    bins = torch.tensor([-0.125,0.125, 0.375, 0.625, 0.875,1.125])
+    inds = torch.bucketize(tensor, bins)
+    tensor_discret = inds.add(-1)
+    
+    return tensor_discret
 
 @hops.component(
-    "/resnet",
-    name="ResNet",
-    description="Predict image with ResNet",
+    "/att_processing",
+    name="AttProcessing",
+    description="Extract attributes from processed greyscale images",
     icon="",
     inputs=[
         hs.HopsString("Path", "path", "Path to image")
     ],
     outputs=[
-        hs.HopsString("Prediction", "x", "Prediction")
+        hs.HopsNumber("c_mu", "c_mu", "Image attribute values"),
+        hs.HopsNumber("c_var", "c_var", "Image attributes variances")
     ],
 ) 
 
-def resnet(path):
-    orig = cv2.imread(path)
-    image = image_utils.load_img(path, target_size=(224, 224))
-    image = image_utils.img_to_array(image)
+def att_processing(img_path):
+    configres_path = 'graycube_im_test.yaml'
 
-    image = np.expand_dims(image, axis=0)
-    image = preprocess_input(image)
+    #configs
+    configres = load_config(configres_path)
 
-    model = ResNet50(weights="imagenet")
+    c_dim = configres['dvae']['c_dim']
+    out_res_name = configres['test']['out_name']
 
-    preds = model.predict(image)
-    P = decode_predictions(preds)
+    checkpoint_res_dir = path.join(out_res_name, 'chkpts')
+    batch_size = configres['test']['batch_size']
 
-    predictions = []
-    for (i, (imagenetID, label, prob)) in enumerate(P[0]):
-        predictions.append("{}. {}: {:.2f}%".format(i + 1, label, prob * 100))
+    dvae, generator_res, discriminator_res = build_models(configres)
+    dvae_ckpt_path = os.path.join('outputs', configres['dvae']['runname'], 'chkpts', configres['dvae']['ckptname'])
+    dvae_ckpt = torch.load(dvae_ckpt_path, map_location=torch.device('cpu'))['model_states']['net']
+    dvae.load_state_dict(dvae_ckpt)
 
-    return predictions[0]
+    # Put models on gpu if needed
+    is_cuda = torch.cuda.is_available()
+    device = torch.device("cuda:0" if is_cuda else "cpu")
+    dvae = dvae.to(device)
+
+    tensor = load_simple_im(img_path)
+
+    x_real_shift = tensor.add(1).div(2)
+
+    if x_real_shift.size(0) == 1:
+        x_real_disc = discretize_to_order_labels(x_real_shift)
+        x_real_onehot = get_one_hot(x_real_disc, 5)
+        x_real_onehot = x_real_onehot.to(device)
+
+        c, c_mu, c_logvar = cs = dvae(x_real_onehot, encode_only=True)
+    else:
+        x_real_shift = x_real_shift.to(device)
+        c, c_mu, c_logvar = cs = dvae(x_real_shift, encode_only=True)
+    
+    c_mu = c_mu.cpu().detach().numpy().squeeze()
+    c_var = np.exp(c_logvar.cpu().detach().numpy().squeeze())
+    
+    return (c_mu.tolist(), c_var.tolist())
+
 
 if __name__ == "__main__":
     app.run()
