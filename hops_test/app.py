@@ -1,30 +1,36 @@
-# import the necessary packages
-import keras.utils as image_utils
-from keras.applications.imagenet_utils import decode_predictions
-from keras.applications.imagenet_utils import preprocess_input
-from keras.applications import ResNet50
-import numpy as np
-import cv2
-
 import argparse
+import sys
 import os
 from os import path
-import copy
 from tqdm import tqdm
 import torch
-from torch import nn
-from gan_training import utils
-from gan_training.checkpoints import CheckpointIO
-from gan_training.distributions import get_ydist, get_zdist
-from gan_training.eval import Evaluator
 from gan_training.config import (
     load_config, build_models
 )
 
 from flask import Flask
 import ghhops_server as hs
-
 import rhino3dm
+
+import cv2
+import numpy as np
+import pickle
+import pandas as pd
+
+sys.path.append("..")
+import matplotlib.pyplot as plt
+
+from gan import output
+sys.modules["output"] = output
+
+from gan.doppelganger import DoppelGANger
+from gan.load_data import load_data
+from gan.network import DoppelGANgerGenerator, Discriminator, AttrDiscriminator
+from gan.output import Output, OutputType, Normalization
+import tensorflow as tf
+from gan.network import DoppelGANgerGenerator, Discriminator, \
+    RNNInitialStateType, AttrDiscriminator
+from gan.util import add_gen_flag, normalize_per_sample
 
 #register hops app as middleware
 app = Flask(__name__)
@@ -73,12 +79,6 @@ def att_processing(img_path):
     #configs
     configres = load_config(configres_path)
 
-    c_dim = configres['dvae']['c_dim']
-    out_res_name = configres['test']['out_name']
-
-    checkpoint_res_dir = path.join(out_res_name, 'chkpts')
-    batch_size = configres['test']['batch_size']
-
     dvae, generator_res, discriminator_res = build_models(configres)
     dvae_ckpt_path = os.path.join('outputs', configres['dvae']['runname'], 'chkpts', configres['dvae']['ckptname'])
     dvae_ckpt = torch.load(dvae_ckpt_path, map_location=torch.device('cpu'))['model_states']['net']
@@ -108,6 +108,28 @@ def att_processing(img_path):
     
     return (c_mu.tolist(), c_var.tolist())
 
+@hops.component(
+    "/timeseries_gen",
+    name="TimeSeriesGeneration",
+    description="Generate time series of solar irradiation",
+    icon="",
+    inputs=[
+        hs.HopsNumber("Image features", "image features", "Vector of image features"),
+        hs.HopsNumber("Longitude", "Long", "Location longitude "),
+        hs.HopsNumber("Latitude", "Lat", "Location latitude"),
+        hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point"),
+        hs.HopsNumber("Surface Normal", "surfaceNormal", "x, y component of the surface normal vector given the facade sensor point"),
+        hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch"),
+        hs.HopsNumber("Solar Declination", "solarDecl", "z-Coordinate of the sensor point"),
+        hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day"),
+    ],
+    outputs=[
+        hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation"),
+    ],
+) 
+
+def timeseries_gen(features, long, lat, height, surfaceNormal, monthIndex, solarDecl, weatherStats):
+   return 0
 
 if __name__ == "__main__":
     app.run()
