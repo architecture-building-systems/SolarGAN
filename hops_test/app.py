@@ -72,7 +72,6 @@ def discretize_to_order_labels(t):
         hs.HopsNumber("c_var", "c_var", "Image attributes variances")
     ],
 ) 
-
 def att_processing(img_path):
     configres_path = 'graycube_im_test.yaml'
 
@@ -108,6 +107,24 @@ def att_processing(img_path):
     
     return (c_mu.tolist(), c_var.tolist())
 
+
+def normalize_attribute(data_att, data_att_outputs, data_att_min, data_att_max):
+    data_att_norm = data_att
+    total_dim = 0
+    for output in data_att_outputs:
+        if output.type_ == OutputType.CONTINUOUS:
+            for _ in range(output.dim):
+                data_att_norm[:, total_dim] = (data_att_norm[:, total_dim] - data_att_min[total_dim]) / (data_att_max[total_dim] - data_att_min[total_dim])
+                if output.normalization == Normalization.MINUSONE_ONE:
+                    data_att_norm[:, total_dim] = data_att_norm[:, total_dim] * 2.0 - 1.0
+
+                total_dim += 1
+        else:
+            total_dim += output.dim
+
+
+    return data_att_norm
+
 @hops.component(
     "/timeseries_gen",
     name="TimeSeriesGeneration",
@@ -129,7 +146,131 @@ def att_processing(img_path):
 ) 
 
 def timeseries_gen(features, long, lat, height, surfaceNormal, monthIndex, solarDecl, weatherStats):
-   return 0
+
+    gen_flags = np.ones((train_sample_size,119))
+
+    data_feature_outputs = [
+	    output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.ZERO_ONE,is_gen_flag=False)]
+        #hourly solar radiation
+
+    data_attribute_outputs = [
+        output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.MINUSONE_ONE,is_gen_flag=False),
+        #lat
+        output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.MINUSONE_ONE,is_gen_flag=False),
+        #longi
+        output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.ZERO_ONE,is_gen_flag=False),
+        #height
+        output.Output(type_=OutputType.CONTINUOUS,dim=2,normalization=Normalization.MINUSONE_ONE,is_gen_flag=False),
+        #norm vector (xy)
+        output.Output(type_=OutputType.CONTINUOUS,dim=32,normalization=Normalization.MINUSONE_ONE,is_gen_flag=False),
+        #latent_im
+        output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.ZERO_ONE,is_gen_flag=False),
+        #mon
+        output.Output(type_=OutputType.CONTINUOUS,dim=1,normalization=Normalization.MINUSONE_ONE,is_gen_flag=False),
+        #inc
+        output.Output(type_=OutputType.CONTINUOUS,dim=8,normalization=Normalization.ZERO_ONE,is_gen_flag=False)]
+        #weather_stat
+
+    #necessary inputs
+    data_all = features
+    data_attribut = attributes
+    data_gen_flag = gen_flags
+
+    sample_len = 17
+
+    # normalise data
+    (data_feature, data_attribute, data_attribute_outputs,
+    real_attribute_mask) = normalize_per_sample(
+            data_all, data_attribut, data_feature_outputs,
+            data_attribute_outputs)
+
+    # add generation flag to features
+    data_feature, data_feature_outputs = add_gen_flag(
+        data_feature, data_gen_flag, data_feature_outputs, sample_len)
+
+    data_attribute_min = np.amin(data_attribute, axis=0)
+    data_attribute_max = np.amax(data_attribute, axis=0)
+
+    data_attribute_normlized = normalize_attribute(data_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
+
+
+    generator = DoppelGANgerGenerator(
+        feed_back=True,
+        noise=True,
+        feature_outputs=data_feature_outputs,
+        attribute_outputs=data_attribute_outputs,
+        real_attribute_mask=real_attribute_mask,
+        attribute_num_units =100,
+        sample_len=sample_len,
+        feature_num_units=100,
+        feature_num_layers=2)
+
+    discriminator = Discriminator(num_units=100)
+    attr_discriminator = AttrDiscriminator(num_units=100)
+
+    checkpoint_dir = "solargan_training/results/checkpoint"
+    sample_dir = "solargan_training/results/sample"
+    time_path = "solargan_training/results/time/time.txt"
+    epoch = 200
+    batch_size = 100
+    g_lr = 0.0001
+    d_lr = 0.0001 
+    vis_freq = 1000
+    vis_num_sample = 1
+    d_rounds = 3
+    g_rounds = 1
+    d_gp_coe = 10.0
+    attr_d_gp_coe=10.0
+    attr_d_lr = 0.0001
+    g_attr_d_coe = 1.0
+    extra_checkpoint_freq = 1000
+    num_packing = 1
+
+
+    # config
+    run_config = tf.ConfigProto()
+    tf.reset_default_graph()
+
+
+    sess = tf.Session(config=run_config)
+
+    with sess.as_default() as sess:
+        assert tf.get_default_session() is sess
+        gan = DoppelGANger(
+            sess=sess, 
+            checkpoint_dir=checkpoint_dir,
+            sample_dir=sample_dir,
+            time_path=time_path,
+            epoch=epoch,
+            batch_size=batch_size,
+            data_feature=data_feature,
+            data_attribute=data_attribute,
+            real_attribute_mask=real_attribute_mask,
+            data_gen_flag=data_gen_flag,
+            sample_len=sample_len,
+            data_feature_outputs=data_feature_outputs,
+            data_attribute_outputs=data_attribute_outputs,
+            vis_freq=vis_freq,
+            vis_num_sample=vis_num_sample,
+            generator=generator,
+            discriminator=discriminator,
+            attr_discriminator=attr_discriminator,
+            d_gp_coe=d_gp_coe,
+            attr_d_gp_coe=attr_d_gp_coe,
+            g_attr_d_coe=g_attr_d_coe,
+            d_rounds=d_rounds,
+            g_rounds=g_rounds,
+            g_lr=g_lr,
+            d_lr=d_lr,
+            attr_d_lr = attr_d_lr,
+            num_packing=num_packing,
+            extra_checkpoint_freq=extra_checkpoint_freq)
+
+        gan.build()
+
+        gan.load(checkpoint_dir)
+    
+    return 0
 
 if __name__ == "__main__":
     app.run()
