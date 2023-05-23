@@ -108,6 +108,75 @@ def att_processing(img_path):
     return (c_mu.tolist(), c_var.tolist())
 
 
+# dim_list = [12,16,30]
+# dim_ix = 2
+# ncol=3
+# lim_d = 0.64
+# lim = -1.5
+# trav_dim = dim_list[dim_ix]
+# wwr_traversing_gif('wwr_30',x_real_test_batch, c_dim_wwr = trav_dim, lim_d = lim_d, lim=lim, ncol=12,fps=3)
+
+@hops.component(
+    "/wwr_traversal",
+    name="WWR Traversal",
+    description="Traverse latent space dimensions",
+    icon="",
+    inputs=[
+        hs.HopsNumber("C_mu", "c_mu", "image fature vector"),
+        hs.HopsNumber("c_dim","c_dim","Feature dimension to traverse")
+    ],
+    outputs=[
+        hs.HopsNumber("Image", "image", "New Image")
+    ],
+) 
+
+def wwr_traversing(c_mu, c_dim = 30):
+    
+    lim = 1
+    lim_d=-2.6
+    ncol=4
+
+    interpolation = torch.linspace(lim_d, lim, ncol)
+
+    idganres_samples_p = []
+    dvae_samples_p = []
+
+    z = zdist.sample((batch_size,))
+
+    for i in range(x_real_shift.size(0)):
+
+        c_ = c_mu[i:i+1]
+        z_ = z[i:i+1]
+        c_zero = torch.zeros_like(c_)
+
+        for val in interpolation:
+            c_p = c_
+            c_p[:, c_dim] = val
+
+            #c_zero[:, c_dim_wwr] = val
+            #c_p = c_ + c_zero
+            z_p_ = torch.cat([z_, c_p], 1)
+
+            idganres_sample_p = generator_postprocess(generator_res(z_p_)).data.cpu()
+            idganres_samples_p.append(idganres_sample_p)
+
+            dvae_sample_p = decoder_postprocess(dvae(c=c_p, decode_only=True)).data.cpu()
+            dvae_samples_p.append(dvae_sample_p)
+
+            x_gan = Image.fromarray(cubemap_back_to_fisheye(idganres_sample_p*4, n_channels = 5))
+            gan_file = target_folder+str(ix)+'.PNG'
+            x_gan.save(gan_file)
+
+
+    idganres_samples_p = torch.cat(idganres_samples_p, dim=0)
+
+    dvae_samples_p = torch.cat(dvae_samples_p, dim=0)
+
+    return x_gan
+
+
+
+
 def normalize_attribute(data_att, data_att_outputs, data_att_min, data_att_max):
     data_att_norm = data_att
     total_dim = 0
