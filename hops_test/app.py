@@ -267,15 +267,14 @@ def att_processing(img_path):
     inputs=[
         hs.HopsNumber("c_mu", "c_mu", "Latent image features", access=hs.HopsParamAccess.LIST),
         hs.HopsNumber("c_dim","c_dim","Feature dimension to traverse"),
-        hs.HopsNumber("lim","lim","Limit"),
-        hs.HopsNumber("lim_d","lim_d","Limit")
+        hs.HopsNumber("Value", "val", "New value for sleected dimension")
     ],
     outputs=[
         hs.HopsString("Image", "image", "New Image")
     ],
 ) 
 
-def wwr_traversing(c_mu2, c_dim, lim, lim_d):
+def wwr_traversing(c_mu2, c_dim, val):
 
     c_mu2 = torch.FloatTensor(c_mu2)
     c_mu2 = c_mu2[None, :]
@@ -288,58 +287,43 @@ def wwr_traversing(c_mu2, c_dim, lim, lim_d):
     for i in range(ncol):
         out_path = os.path.join(dir_path, (str(i+1) + ".PNG"))
         if os.path.isfile(out_path):
-            os.remove(out_path)
-    
-    interpolation = torch.linspace(lim_d, lim, ncol)
+            try:
+                os.remove(out_path)
+            except OSError as e:
+                print("Error: %s : %s" % (out_path, e.strerror))
 
     z = zdist.sample((batch_size,))
 
-    # tensor = load_simple_im(img_path)
+    #for i in range(1):
 
-    # x_real_test_batch_small = tensor[:,:,:]
+    #c_ = c_mu[i:i+1]
+    c_ = c_mu2
 
-    # x_real_shift = x_real_test_batch_small.add(1).div(2)
+    z_ = z[0:1]
 
-    # if x_real_shift.size(0) == 1:
-    #     x_real_disc = discretize_to_order_labels(x_real_shift)
-    #     x_real_onehot = get_one_hot(x_real_disc, 5)
-    #     x_real_onehot = x_real_onehot.to(device)
+    #for val in interpolation:
+    c_p = c_
+    c_p[:,c_dim] = val
 
-    #     c, c_mu, c_logvar = cs = dvae(x_real_onehot, encode_only=True)
+    z_p_ = torch.cat([z_, c_p], 1)
 
-    # else:
-    #     x_real_shift = x_real_shift.to(device)
-    #     c, c_mu, c_logvar = cs = dvae(x_real_shift, encode_only=True)
-    
-    ix = 0
+    idganres_sample_p = generator_postprocess(generator_res(z_p_)).data.cpu().squeeze(0)
+    """
+        img_name = cubemap_back_to_fisheye(idganres_sample_p*4, n_channels = 5, id = ix)
+    out_path = os.path.join(dir_path, img_name)
+    imgs.append(out_path) """
+    x_gan = Image.fromarray(cubemap_back_to_fisheye(idganres_sample_p*4, n_channels = 5))
 
-    for i in range(1):
+    gan_file = os.path.join(dir_path, (str(val)+'.PNG'))
+    print(gan_file)
 
-        #c_ = c_mu[i:i+1]
-        c_ = c_mu2
+    try:
+        x_gan.save(gan_file)
+    except OSError as e:
+        print("Error: %s : %s" % (out_path, e.strerror))
 
-        z_ = z[i:i+1]
 
-        for val in interpolation:
-            c_p = c_
-            c_p[:,c_dim] = val
-
-            z_p_ = torch.cat([z_, c_p], 1)
-
-            idganres_sample_p = generator_postprocess(generator_res(z_p_)).data.cpu().squeeze(0)
-            """
-             img_name = cubemap_back_to_fisheye(idganres_sample_p*4, n_channels = 5, id = ix)
-            out_path = os.path.join(dir_path, img_name)
-            imgs.append(out_path) """
-            x_gan = Image.fromarray(cubemap_back_to_fisheye(idganres_sample_p*4, n_channels = 5))
-
-            gan_file = os.path.join(dir_path, (str(ix+1)+'.PNG'))
-            print(gan_file)
-            x_gan.save(gan_file)
-            
-            ix+=1
-
-    img_names_gan = [os.path.join(dir_path, (str(i+1)+'.PNG')) for i in range(ncol)]
+    img_names_gan = [os.path.join(dir_path, (str(val)+'.PNG')) for i in range(ncol)]
 
     return img_names_gan
 
