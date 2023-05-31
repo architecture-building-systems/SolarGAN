@@ -281,16 +281,14 @@ def wwr_traversing(c_mu2, c_dim, val):
 
     c_dim = int(c_dim)
 
-    ncol=4
-
     #remove images from folder from previous run
-    for i in range(ncol):
-        out_path = os.path.join(dir_path, (str(i+1) + ".PNG"))
-        if os.path.isfile(out_path):
-            try:
-                os.remove(out_path)
-            except OSError as e:
-                print("Error: %s : %s" % (out_path, e.strerror))
+
+    out_path = os.path.join(dir_path, (str(val) + ".PNG"))
+    if os.path.isfile(out_path):
+        try:
+            os.remove(out_path)
+        except OSError as e:
+            print("Error: %s : %s" % (out_path, e.strerror))
 
     z = zdist.sample((batch_size,))
 
@@ -323,7 +321,7 @@ def wwr_traversing(c_mu2, c_dim, val):
         print("Error: %s : %s" % (out_path, e.strerror))
 
 
-    img_names_gan = [os.path.join(dir_path, (str(val)+'.PNG')) for i in range(ncol)]
+    img_names_gan = os.path.join(dir_path, (str(val)+'.PNG'))
 
     return img_names_gan
 
