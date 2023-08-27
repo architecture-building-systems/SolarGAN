@@ -223,7 +223,6 @@ def cubemap_back_to_fisheye(single_im_tensor,n_channels=5, outsize=256, padding=
     return x_fish
 
 
-
 @hops.component(
     "/att_processing",
     name="AttProcessing",
@@ -273,7 +272,6 @@ def att_processing(img_path):
         hs.HopsString("Image", "image", "New Image")
     ],
 ) 
-
 def wwr_traversing(c_mu2, c_dim, val):
 
     c_mu2 = torch.FloatTensor(c_mu2)
@@ -343,6 +341,73 @@ def normalize_attribute(data_att, data_att_outputs, data_att_min, data_att_max):
 
     return data_att_norm
 
+def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
+                           data_attribute_outputs, gen_flags,
+                           num_real_attribute):
+    attr_dim = 0
+    for i in range(num_real_attribute):
+        attr_dim += data_attribute_outputs[i].dim
+    attr_dim_cp = attr_dim
+
+    fea_dim = 0
+    for output in data_feature_outputs:
+        if output.type_ == OutputType.CONTINUOUS:
+            for _ in range(output.dim):
+                max_plus_min_d_2 = data_attribute[:, attr_dim]
+                max_minus_min_d_2 = data_attribute[:, attr_dim + 1]
+                attr_dim += 2
+
+                max_ = max_plus_min_d_2 + max_minus_min_d_2
+                min_ = np.zeros_like(max_plus_min_d_2 - max_minus_min_d_2)
+
+                max_ = np.expand_dims(max_, axis=1)
+                min_ = np.expand_dims(min_, axis=1)
+
+                if output.normalization == Normalization.MINUSONE_ONE:
+                    data_feature[:, :, fea_dim] = \
+                        (data_feature[:, :, fea_dim] + 1.0) / 2.0
+
+                data_feature[:, :, fea_dim] = \
+                    data_feature[:, :, fea_dim] * (max_ - min_) + min_
+
+                fea_dim += 1
+        else:
+            fea_dim += output.dim
+
+    tmp_gen_flags = np.expand_dims(gen_flags, axis=2)
+    data_feature = data_feature * tmp_gen_flags
+
+    data_attribute = data_attribute[:, 0: attr_dim_cp]
+
+    return data_feature, data_attribute
+
+
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor):
+    weather_data_array_morning_batch = np.zeros((364,4,num_gen))
+    weather_data_array_morning_single = np.zeros((364,4,1))
+    weather_data_array_evening_batch = np.zeros((364,3,num_gen))
+    weather_data_array_evening_single = np.zeros((364,3,1))
+    
+    feat_gt_all = np.empty(shape=(0,8736,1))
+    feat_gen_all = np.empty(shape=(0,8736,num_gen))
+    
+    for i in range(num):
+        
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor)
+        gt_i_daily = gt_i.reshape(364,-1,1)
+        gen_i_daily = gen_i.reshape(364,-1,num_gen)
+        
+        gt_i_daily_complete = np.concatenate((weather_data_array_morning_single,gt_i_daily,weather_data_array_evening_single),axis=1)
+        gen_i_daily_complete = np.concatenate((weather_data_array_morning_batch,gen_i_daily,weather_data_array_evening_batch),axis=1)
+        
+        gt_i_complete = np.expand_dims(gt_i_daily_complete.reshape(-1,1),0)
+        gen_i_complete = np.expand_dims(gen_i_daily_complete.reshape(-1,num_gen),0)
+        
+        feat_gt_all = np.append(feat_gt_all,gt_i_complete).reshape(-1,8736,1)
+        feat_gen_all = np.append(feat_gen_all,gen_i_complete).reshape(-1,8736,num_gen)
+        
+    return feat_gt_all, feat_gen_all
+
 @hops.component(
     "/timeseries_gen",
     name="TimeSeriesGeneration",
@@ -350,30 +415,32 @@ def normalize_attribute(data_att, data_att_outputs, data_att_min, data_att_max):
     icon="",
     inputs=[
         hs.HopsNumber("Image features", "image features", "Vector of image features"),
-        hs.HopsNumber("Latitude", "Lat", "Location latitude"),
-        hs.HopsNumber("Longitude", "Long", "Location longitude "),
-        hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point"),
-        hs.HopsNumber("Surface Normal X", "surfaceNormalX", "x component of the surface normal vector given the facade sensor point"),
-        hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point"),
-        hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch"),
-        hs.HopsNumber("Solar Declination", "solarDecl", "z-Coordinate of the sensor point"),
-        hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day"),
+        #hs.HopsNumber("Latitude", "Lat", "Location latitude"),
+        #hs.HopsNumber("Longitude", "Long", "Location longitude "),
+        #hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point"),
+        #hs.HopsNumber("Surface Normal X", "surfaceNormalX", "x component of the surface normal vector given the facade sensor point"),
+        #hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point"),
+        #hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch"),
+        #hs.HopsNumber("Solar Declination", "solarDecl", "z-Coordinate of the sensor point"),
+        #hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day"),
     ],
     outputs=[
         hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation"),
     ],
 ) 
 
-def timeseries_gen(image_features, long, lat, height, surfaceNormalX,  surfaceNormalY, monthIndex, solarDecl, weatherStats):
+def timeseries_gen(image_features):
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather 
     #attributes = np.hstack((lat, long, height, image_features, surfaceNormalX, surfaceNormalY, monthIndex, solarDecl, weatherStats))
 
-    attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
+    #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
+    attributes = np.load('C:\\Users\\Philip\\Desktop\\sbe_att.npy')
 
     train_sample_size = attributes.shape[0]
 
-    features = np.load(os.path.join(dir_path,'sbe_feat.npy'))
+    #features = np.load(os.path.join(dir_path,'sbe_feat.npy'))
+    features = np.load('C:\\Users\\Philip\\Desktop\\sbe_feat.npy')
     features = features.reshape(-1,119,1)
 
     gen_flags = np.ones((train_sample_size,119))
@@ -418,7 +485,6 @@ def timeseries_gen(image_features, long, lat, height, surfaceNormalX,  surfaceNo
     data_attribute_max = np.amax(data_attribute, axis=0)
 
     data_attribute_normlized = normalize_attribute(data_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
-
 
     generator = DoppelGANgerGenerator(
         feed_back=True,
@@ -500,11 +566,54 @@ def timeseries_gen(image_features, long, lat, height, surfaceNormalX,  surfaceNo
         print("Finished Building")
         gan.load(checkpoint_dir)
         print("Finished loading")
+
+    features_gt = np.load('europe_feat_test.npy')
+    #features_gt = np.load('seasia_feat_test.npy')
+
+    features_gt = features_gt.reshape(-1,119,1)
     
+    site_list = ['geneva','milan','paris','perlin','zurich']
+    #site_list =['hochiminh','jakarta','kualalumpur','pangkok','singapore']
+    for site_i in range(5):
+        site = site_list[site_i]
+        site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1000,10,site_i,data_attribute_max[48])
+        site_i_gt_file = site+'_gt_feat_test.npy'
+        site_i_gen_file = site+'_gen_feat_test.npy' 
+        
+        np.save(site_i_gt_file,site_i_gt)
+        np.save(site_i_gen_file,site_i_gen)
+
     return 0
 
 if __name__ == "__main__":
     app.run(debug=True)
 
+
+
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor):
+    weather_data_array_morning_batch = np.zeros((364,4,num_gen))
+    weather_data_array_morning_single = np.zeros((364,4,1))
+    weather_data_array_evening_batch = np.zeros((364,3,num_gen))
+    weather_data_array_evening_single = np.zeros((364,3,1))
+    
+    feat_gt_all = np.empty(shape=(0,8736,1))
+    feat_gen_all = np.empty(shape=(0,8736,num_gen))
+    
+    for i in range(num):
+        
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor)
+        gt_i_daily = gt_i.reshape(364,-1,1)
+        gen_i_daily = gen_i.reshape(364,-1,num_gen)
+        
+        gt_i_daily_complete = np.concatenate((weather_data_array_morning_single,gt_i_daily,weather_data_array_evening_single),axis=1)
+        gen_i_daily_complete = np.concatenate((weather_data_array_morning_batch,gen_i_daily,weather_data_array_evening_batch),axis=1)
+        
+        gt_i_complete = np.expand_dims(gt_i_daily_complete.reshape(-1,1),0)
+        gen_i_complete = np.expand_dims(gen_i_daily_complete.reshape(-1,num_gen),0)
+        
+        feat_gt_all = np.append(feat_gt_all,gt_i_complete).reshape(-1,8736,1)
+        feat_gen_all = np.append(feat_gen_all,gen_i_complete).reshape(-1,8736,num_gen)
+        
+    return feat_gt_all, feat_gen_all
 
 

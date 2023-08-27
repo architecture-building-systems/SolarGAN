@@ -42,3 +42,6 @@ All necessary files to run SolarGAN in Grasshopper through Hops can be found in 
 4. Done!
 
 If the Hops components show an error, try right-clicking and selecting the Path option. The API endpoint should read something like 'http://127.0.0.1:5000/att_processing'. Hops tries to to reach the Hops server at this address. If this does not work, make sure the Hops server is running correctly and that the local address matches the one declared in the Path in Grasshopper.
+
+## How it works
+
