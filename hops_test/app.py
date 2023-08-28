@@ -381,8 +381,55 @@ def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
 
     return data_feature, data_attribute
 
+def gen_annual (gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
+    print(list_index)
+    num_weeks = 52
+    
+    train_sample_size = given_att_all.shape[0]
+    
+    index = 3*list_index*num_weeks+int(location_index*train_sample_size/5)
+    
+    given_att = given_att_all[index:index+num_weeks,:-2]
+    given_att_tiles=np.tile(given_att,(num_gen,1))
+    
+    length = int(gt_feat_all.shape[1] / sample_len)
+    num_real_attribute=8
+    
+    addi_attribute_input_noise = gan.gen_attribute_input_noise(
+                num_gen*num_weeks)
+    feature_input_noise = gan.gen_feature_input_noise(
+                num_gen*num_weeks, length)
+    
+    #print(feature_input_noise.shape)
 
-def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor):
+    input_data = gan.gen_feature_input_data_free(
+                num_gen*num_weeks)
+    
+    # generate features, attributes and lengths
+    gen_features, gen_attributes, gen_flags, lengths = gan.sample_from(
+        None, addi_attribute_input_noise,
+        feature_input_noise, input_data, given_attribute=given_att_tiles)
+
+    #denormalise accordingly
+    gen_features, gen_attributes = renormalize_per_sample(
+        gen_features, gen_attributes, data_feature_outputs,
+        data_attribute_outputs, gen_flags,
+        num_real_attribute=num_real_attribute)
+    
+    
+    gt = gt_feat_all[index:index+num_weeks,:]
+    gen_features=gen_features*renorm_factor
+    gen_features=gen_features.squeeze(2).reshape(num_gen,-1)
+    
+    gen_features = gen_features.transpose()
+    
+    gen_features = np.expand_dims(gen_features,0)
+    gt = gt.reshape(1,-1,1)
+    
+    return gt, gen_features
+
+
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
     weather_data_array_morning_batch = np.zeros((364,4,num_gen))
     weather_data_array_morning_single = np.zeros((364,4,1))
     weather_data_array_evening_batch = np.zeros((364,3,num_gen))
@@ -393,7 +440,7 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renor
     
     for i in range(num):
         
-        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor)
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
         gt_i_daily = gt_i.reshape(364,-1,1)
         gen_i_daily = gen_i.reshape(364,-1,num_gen)
         
@@ -414,7 +461,9 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renor
     description="Generate time series of solar irradiation",
     icon="",
     inputs=[
-        hs.HopsNumber("Image features", "image features", "Vector of image features"),
+        hs.HopsBoolean("Run", "run", "Run time series gen"),
+        hs.HopsNumber("Ensemble size", "num_gen", "Number of generated time series"),
+        #hs.HopsNumber("Image features", "image features", "Vector of image features"),
         #hs.HopsNumber("Latitude", "Lat", "Location latitude"),
         #hs.HopsNumber("Longitude", "Long", "Location longitude "),
         #hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point"),
@@ -429,18 +478,23 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renor
     ],
 ) 
 
-def timeseries_gen(image_features):
+def timeseries_gen(run, num_gen):
+
+    if (run != True):
+        return 0
+
+    num_gen = int(num_gen)
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather 
     #attributes = np.hstack((lat, long, height, image_features, surfaceNormalX, surfaceNormalY, monthIndex, solarDecl, weatherStats))
 
     #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
-    attributes = np.load('C:\\Users\\Philip\\Desktop\\sbe_att.npy')
+    attributes = np.load('C:\\Users\\phili\\Desktop\\sbe_att.npy')
 
     train_sample_size = attributes.shape[0]
 
     #features = np.load(os.path.join(dir_path,'sbe_feat.npy'))
-    features = np.load('C:\\Users\\Philip\\Desktop\\sbe_feat.npy')
+    features = np.load('C:\\Users\\phili\\Desktop\\sbe_feat.npy')
     features = features.reshape(-1,119,1)
 
     gen_flags = np.ones((train_sample_size,119))
@@ -522,13 +576,10 @@ def timeseries_gen(image_features):
 
     # config
     run_config = tf.ConfigProto()
-    #run_config = tf.compat.v1.ConfigProto()
 
     tf.reset_default_graph()
-    #tf.compat.v1.reset_default_graph()
 
     sess = tf.Session(config=run_config)
-    #sess = tf.compat.v1.Session(config=run_config)
 
     with sess.as_default() as sess:
         assert tf.get_default_session() is sess
@@ -567,53 +618,30 @@ def timeseries_gen(image_features):
         gan.load(checkpoint_dir)
         print("Finished loading")
 
-    features_gt = np.load('europe_feat_test.npy')
+    features_gt = np.load('C:\\Users\\phili\\Desktop\\europe_feat_test.npy')
     #features_gt = np.load('seasia_feat_test.npy')
-
+    print("Feature loaded")
     features_gt = features_gt.reshape(-1,119,1)
     
     site_list = ['geneva','milan','paris','perlin','zurich']
     #site_list =['hochiminh','jakarta','kualalumpur','pangkok','singapore']
-    for site_i in range(5):
-        site = site_list[site_i]
-        site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1000,10,site_i,data_attribute_max[48])
-        site_i_gt_file = site+'_gt_feat_test.npy'
-        site_i_gen_file = site+'_gen_feat_test.npy' 
-        
-        np.save(site_i_gt_file,site_i_gt)
-        np.save(site_i_gen_file,site_i_gen)
 
-    return 0
+    site_i = 4
+    site = site_list[site_i]
+    site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,100,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
+    site_i_gt_file = site+'_gt_feat_test.npy'
+    site_i_gen_file = site+'_gen_feat_test.npy' 
+    
+    np.save(site_i_gt_file,site_i_gt)
+    np.save(site_i_gen_file,site_i_gen)
+
+    #TEMP TODO remove
+    zurich = np.load("zurich_gen_feat_test.npy")
+    zurich_mean = np.mean(zurich, 0)
+    zurich_mean_mean = np.mean(zurich_mean, 1)
+    np.savetxt("zurich_gen_mean.txt", zurich_mean_mean)
+
+    return zurich_mean_mean.tolist()
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor):
-    weather_data_array_morning_batch = np.zeros((364,4,num_gen))
-    weather_data_array_morning_single = np.zeros((364,4,1))
-    weather_data_array_evening_batch = np.zeros((364,3,num_gen))
-    weather_data_array_evening_single = np.zeros((364,3,1))
-    
-    feat_gt_all = np.empty(shape=(0,8736,1))
-    feat_gen_all = np.empty(shape=(0,8736,num_gen))
-    
-    for i in range(num):
-        
-        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor)
-        gt_i_daily = gt_i.reshape(364,-1,1)
-        gen_i_daily = gen_i.reshape(364,-1,num_gen)
-        
-        gt_i_daily_complete = np.concatenate((weather_data_array_morning_single,gt_i_daily,weather_data_array_evening_single),axis=1)
-        gen_i_daily_complete = np.concatenate((weather_data_array_morning_batch,gen_i_daily,weather_data_array_evening_batch),axis=1)
-        
-        gt_i_complete = np.expand_dims(gt_i_daily_complete.reshape(-1,1),0)
-        gen_i_complete = np.expand_dims(gen_i_daily_complete.reshape(-1,num_gen),0)
-        
-        feat_gt_all = np.append(feat_gt_all,gt_i_complete).reshape(-1,8736,1)
-        feat_gen_all = np.append(feat_gen_all,gen_i_complete).reshape(-1,8736,num_gen)
-        
-    return feat_gt_all, feat_gen_all
-
-
