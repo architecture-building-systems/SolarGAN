@@ -25,20 +25,15 @@ All necessary files to run SolarGAN in Grasshopper through Hops can be found in 
 
 ## Required Python packages
 
-- Flask
-- ghhops_server
-
-- torch
-- cv2
-- numpy
-- PIL
-- tqdm
+SolarGAN requires a couple of Python packages, notably ghhops-server, torch, and tensorflow 1.15
+TensorFlow 1.15 especially can make the Python env setup tricky, since it requires older versions of some other dependecies.
+The easies way to use SolarGAN/Hops is to create a fresh, empty conda Python environment, then install the packages from the `requirements.txt` or `environment.yml` file in the 'hops_test' directory.
 
 ## Setup steps
 
 1. Install the required Software and Python packages
 2. Navigate into the hops_test directory and run 'python ./app.py' from the command line to launch the Hops server
-3. Open 'SolarGAN_Hops_Template.gh' in Grasshopper
+3. Open `SolarGAN_Hops_Template.gh` in Grasshopper
 4. Done!
 
 If the Hops components show an error, try right-clicking and selecting the Path option. The API endpoint should read something like 'http://127.0.0.1:5000/att_processing'. Hops tries to to reach the Hops server at this address. If this does not work, make sure the Hops server is running correctly and that the local address matches the one declared in the Path in Grasshopper.
