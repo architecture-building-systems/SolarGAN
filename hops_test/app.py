@@ -381,7 +381,7 @@ def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
 
     return data_feature, data_attribute
 
-def gen_annual (gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
+def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
     print(list_index)
     num_weeks = 52
     
@@ -429,7 +429,7 @@ def gen_annual (gt_feat_all,given_att_all,list_index,num_gen,location_index,reno
     return gt, gen_features
 
 
-def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
     weather_data_array_morning_batch = np.zeros((364,4,num_gen))
     weather_data_array_morning_single = np.zeros((364,4,1))
     weather_data_array_evening_batch = np.zeros((364,3,num_gen))
@@ -440,7 +440,7 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renor
     
     for i in range(num):
         
-        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,4,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
         gt_i_daily = gt_i.reshape(364,-1,1)
         gen_i_daily = gen_i.reshape(364,-1,num_gen)
         
@@ -474,7 +474,7 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,location_index,renor
         #hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day"),
     ],
     outputs=[
-        hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation"),
+        hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation", hs.HopsParamAccess.LIST),
     ],
 ) 
 
@@ -637,11 +637,13 @@ def timeseries_gen(run, num_gen):
 
     #TEMP TODO remove
     zurich = np.load("zurich_gen_feat_test.npy")
-    zurich_mean = np.mean(zurich, 0)
-    zurich_mean_mean = np.mean(zurich_mean, 1)
-    np.savetxt("zurich_gen_mean.txt", zurich_mean_mean)
+    zurich_mean = np.mean(zurich, 2)
 
-    return zurich_mean_mean.tolist()
+    np.savetxt("zurich_gen_mean_"+str(num_gen)+".txt", zurich_mean)
+
+    zurich_list = zurich_mean[0,:].tolist()
+    
+    return zurich_list
 
 if __name__ == "__main__":
     app.run(debug=True)
