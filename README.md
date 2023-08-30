@@ -25,7 +25,8 @@ All necessary files to run SolarGAN in Grasshopper through Hops can be found in 
 
 ## Required Python packages
 
-SolarGAN requires a couple of Python packages, notably ghhops-server, torch, and tensorflow 1.15
+SolarGAN requires a couple of Python packages, notably ghhops-server, torch, and tensorflow 1.15.
+
 TensorFlow 1.15 especially can make the Python env setup tricky, since it requires older versions of some other dependecies.
 The easies way to use SolarGAN/Hops is to create a fresh, empty conda Python environment, then install the packages from the `requirements.txt` or `environment.yml` file in the 'hops_test' directory.
 
