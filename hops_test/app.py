@@ -381,16 +381,22 @@ def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
 
     return data_feature, data_attribute
 
-def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
+def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, attribute_canvas):
     print(list_index)
     num_weeks = 52
     
     train_sample_size = given_att_all.shape[0]
     
     index = 3*list_index*num_weeks+int(location_index*train_sample_size/5)
+
     
-    given_att = given_att_all[index:index+num_weeks,:-2]
-    given_att_tiles=np.tile(given_att,(num_gen,1))
+    # given_att = given_att_all[index:index+num_weeks,:-2]
+    # given_att_tiles=np.tile(given_att,(num_gen,1))
+    # print("GIVEN_ATT")
+    # print(given_att.shape)
+    # print(given_att_tiles.shape)
+    
+    canvas_att_tiles=np.tile(attribute_canvas,(num_gen,1))
     
     length = int(gt_feat_all.shape[1] / sample_len)
     num_real_attribute=8
@@ -408,7 +414,7 @@ def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renor
     # generate features, attributes and lengths
     gen_features, gen_attributes, gen_flags, lengths = gan.sample_from(
         None, addi_attribute_input_noise,
-        feature_input_noise, input_data, given_attribute=given_att_tiles)
+        feature_input_noise, input_data, given_attribute=canvas_att_tiles)
 
     #denormalise accordingly
     gen_features, gen_attributes = renormalize_per_sample(
@@ -429,7 +435,7 @@ def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renor
     return gt, gen_features
 
 
-def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs):
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs,attribute_canvas):
     weather_data_array_morning_batch = np.zeros((364,4,num_gen))
     weather_data_array_morning_single = np.zeros((364,4,1))
     weather_data_array_evening_batch = np.zeros((364,3,num_gen))
@@ -440,7 +446,8 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
     
     for i in range(num):
         
-        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
+        #gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, attribute_canvas)
         gt_i_daily = gt_i.reshape(364,-1,1)
         gen_i_daily = gen_i.reshape(364,-1,num_gen)
         
@@ -461,40 +468,57 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
     description="Generate time series of solar irradiation",
     icon="",
     inputs=[
-        hs.HopsBoolean("Run", "run", "Run time series gen"),
-        hs.HopsNumber("Ensemble size", "num_gen", "Number of generated time series"),
-        #hs.HopsNumber("Image features", "image features", "Vector of image features"),
-        #hs.HopsNumber("Latitude", "Lat", "Location latitude"),
-        #hs.HopsNumber("Longitude", "Long", "Location longitude "),
-        #hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point"),
-        #hs.HopsNumber("Surface Normal X", "surfaceNormalX", "x component of the surface normal vector given the facade sensor point"),
-        #hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point"),
-        #hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch"),
-        #hs.HopsNumber("Solar Declination", "solarDecl", "z-Coordinate of the sensor point"),
-        #hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day"),
+        hs.HopsBoolean("Run", "run", "Run time series gen", hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Ensemble size", "num_gen", "Number of generated time series", hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Image features", "image features", "Vector of image features", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("Latitude", "lat", "Location latitude", hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Longitude", "long", "Location longitude", hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point", hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Surface Normal X", "surfaceNormalX", "x component of the surface normal vector given the facade sensor point",hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point",hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch",hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Solar Declination", "solarDecl", "Declination of the sun",hs.HopsParamAccess.ITEM),
+        #hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day",hs.HopsParamAccess.LIST),
     ],
     outputs=[
         hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation", hs.HopsParamAccess.LIST),
     ],
 ) 
 
-def timeseries_gen(run, num_gen):
+def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, month_index, solar_dec):
 
     if (run != True):
         return 0
 
     num_gen = int(num_gen)
+    img_feat = list(img_feat)
+    print(img_feat)
+    print(lat)
+    print(long)
+    print(height)
+    print(x_norm)
+    print(y_norm)
+    print(month_index)
+    print(solar_dec)
+    # weather_stats = list(weather_stats)
+    # print(weather_stats)
+    weather_stats = np.random.rand(8)
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather 
-    #attributes = np.hstack((lat, long, height, image_features, surfaceNormalX, surfaceNormalY, monthIndex, solarDecl, weatherStats))
+    attributes_canvas = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats))
+    print(attributes_canvas.shape)
+    attributes_canvas_rep = np.tile(attributes_canvas,(52,1))
+    print(attributes_canvas_rep.shape)
 
     #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
     attributes = np.load('C:\\Users\\phili\\Desktop\\sbe_att.npy')
 
     train_sample_size = attributes.shape[0]
+    print(attributes.shape)
 
     #features = np.load(os.path.join(dir_path,'sbe_feat.npy'))
     features = np.load('C:\\Users\\phili\\Desktop\\sbe_feat.npy')
+    print(features.shape)
     features = features.reshape(-1,119,1)
 
     gen_flags = np.ones((train_sample_size,119))
@@ -628,7 +652,8 @@ def timeseries_gen(run, num_gen):
 
     site_i = 4
     site = site_list[site_i]
-    site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,100,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
+    #site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
+    site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs, attributes_canvas_rep)
     site_i_gt_file = site+'_gt_feat_test.npy'
     site_i_gen_file = site+'_gen_feat_test.npy' 
     
