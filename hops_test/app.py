@@ -40,6 +40,8 @@ hops = hs.Hops(app)
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
+previous_result = []
+
 class CheckpointIO(object):
     def __init__(self, checkpoint_dir='./chkpts', **kwargs):
         self.module_dict = kwargs
@@ -486,9 +488,10 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
 ) 
 
 def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, month_index, solar_dec):
-
-    if (run != True):
-        return 0
+    global previous_result 
+    
+    if (run == 0):
+        return previous_result
 
     num_gen = int(num_gen)
     img_feat = list(img_feat)
@@ -667,7 +670,10 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     np.savetxt("zurich_gen_mean_"+str(num_gen)+".txt", zurich_mean)
 
     zurich_list = zurich_mean[0,:].tolist()
+
     
+    previous_result = zurich_list
+
     return zurich_list
 
 if __name__ == "__main__":
