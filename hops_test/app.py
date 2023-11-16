@@ -383,22 +383,23 @@ def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
 
     return data_feature, data_attribute
 
-def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, attribute_canvas):
+def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, canvas_attribute):
     print(list_index)
     num_weeks = 52
+    print(given_att_all.shape)
     
     train_sample_size = given_att_all.shape[0]
-    
     index = 3*list_index*num_weeks+int(location_index*train_sample_size/5)
-
-    
     # given_att = given_att_all[index:index+num_weeks,:-2]
     # given_att_tiles=np.tile(given_att,(num_gen,1))
     # print("GIVEN_ATT")
     # print(given_att.shape)
     # print(given_att_tiles.shape)
-    
-    canvas_att_tiles=np.tile(attribute_canvas,(num_gen,1))
+
+    #TODO temp canvas attribute tiling (52 times for each week of the year)
+    canvas_attribute_rep = np.tile(canvas_attribute[:-2],(52,1))
+    #tiling to repeat for the number of desired samples
+    canvas_att_tiles=np.tile(canvas_attribute_rep,(num_gen,1))
     
     length = int(gt_feat_all.shape[1] / sample_len)
     num_real_attribute=8
@@ -426,18 +427,17 @@ def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renor
     
     
     gt = gt_feat_all[index:index+num_weeks,:]
+    gt = gt.reshape(1,-1,1)
+
     gen_features=gen_features*renorm_factor
     gen_features=gen_features.squeeze(2).reshape(num_gen,-1)
-    
     gen_features = gen_features.transpose()
-    
     gen_features = np.expand_dims(gen_features,0)
-    gt = gt.reshape(1,-1,1)
     
     return gt, gen_features
 
 
-def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs,attribute_canvas):
+def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs,canvas_attribute):
     weather_data_array_morning_batch = np.zeros((364,4,num_gen))
     weather_data_array_morning_single = np.zeros((364,4,1))
     weather_data_array_evening_batch = np.zeros((364,3,num_gen))
@@ -449,7 +449,7 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
     for i in range(num):
         
         #gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs)
-        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, attribute_canvas)
+        gt_i, gen_i = gen_annual(gt_feat_all,given_att_all,i,num_gen,site_i,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, canvas_attribute)
         gt_i_daily = gt_i.reshape(364,-1,1)
         gen_i_daily = gen_i.reshape(364,-1,num_gen)
         
@@ -507,21 +507,16 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     # print(weather_stats)
     weather_stats = np.random.rand(8)
     
-    #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather 
-    attributes_canvas = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats))
-    print(attributes_canvas.shape)
-    attributes_canvas_rep = np.tile(attributes_canvas,(52,1))
-    print(attributes_canvas_rep.shape)
+    #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
+    canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats, 1, 1))
 
     #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
     attributes = np.load('C:\\Users\\phili\\Desktop\\sbe_att.npy')
 
     train_sample_size = attributes.shape[0]
-    print(attributes.shape)
 
     #features = np.load(os.path.join(dir_path,'sbe_feat.npy'))
     features = np.load('C:\\Users\\phili\\Desktop\\sbe_feat.npy')
-    print(features.shape)
     features = features.reshape(-1,119,1)
 
     gen_flags = np.ones((train_sample_size,119))
@@ -549,23 +544,31 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
         #weather_stat
 
     #necessary inputs
-    data_all = features
-    data_attribut = attributes
-    data_gen_flag = gen_flags
-
     sample_len = 17
-
+    print(attributes.shape)
     # normalise data
-    (data_feature, data_attribute, data_attribute_outputs, real_attribute_mask) = normalize_per_sample(data_all, data_attribut, data_feature_outputs, data_attribute_outputs)
+    (data_feature, data_attribute, data_attribute_outputs, real_attribute_mask) = normalize_per_sample(features, attributes, data_feature_outputs, data_attribute_outputs)
+
+    ### Stick attributes loaded from the file and those loaded from the canvas together for normalization of the canvas attributes ###########################
+    canvas_attribute_axis = canvas_attribute[:,np.newaxis]
+    comb_attribute = np.vstack((canvas_attribute_axis.T, data_attribute))
+    print(comb_attribute[0])
+    print(comb_attribute[1])
+
 
     # add generation flag to features
     data_feature, data_feature_outputs = add_gen_flag(
-        data_feature, data_gen_flag, data_feature_outputs, sample_len)
+        data_feature, gen_flags, data_feature_outputs, sample_len)
 
-    data_attribute_min = np.amin(data_attribute, axis=0)
-    data_attribute_max = np.amax(data_attribute, axis=0)
+    data_attribute_min = np.amin(comb_attribute, axis=0)
+    data_attribute_max = np.amax(comb_attribute, axis=0)
 
-    data_attribute_normlized = normalize_attribute(data_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
+    norm_attribute = normalize_attribute(comb_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
+    print(norm_attribute[0])
+    print(norm_attribute[1])
+    print(norm_attribute.shape)
+
+    #TODO continue here with splitting of the normalized canvas attributes again
 
     generator = DoppelGANgerGenerator(
         feed_back=True,
@@ -620,7 +623,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
             data_feature=data_feature,
             data_attribute=data_attribute,
             real_attribute_mask=real_attribute_mask,
-            data_gen_flag=data_gen_flag,
+            data_gen_flag=gen_flags,
             sample_len=sample_len,
             data_feature_outputs=data_feature_outputs,
             data_attribute_outputs=data_attribute_outputs,
@@ -655,8 +658,8 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     site_i = 4
     site = site_list[site_i]
-    #site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
-    site_i_gt, site_i_gen = all_annual_batch(features_gt,data_attribute_normlized,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs, attributes_canvas_rep)
+    #site_i_gt, site_i_gen = all_annual_batch(features_gt,norm_attribute,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
+    site_i_gt, site_i_gen = all_annual_batch(features_gt,norm_attribute,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs, canvas_attribute)
     site_i_gt_file = site+'_gt_feat_test.npy'
     site_i_gen_file = site+'_gen_feat_test.npy' 
     
