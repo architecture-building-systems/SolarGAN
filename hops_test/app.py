@@ -520,8 +520,6 @@ def calculate_weather_stats(epw_path):
                 DHI_day_avg.append(dhi_day_total/24)
                 dni_day_total = 0
                 dhi_day_total = 0
-                print(DNI_day_avg)
-                print(DHI_day_avg)
 
         DNI_weekly_average = dni_total / 168
         DHI_weekly_average = dhi_total / 168
@@ -588,12 +586,18 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     # print(solar_dec)
     # print(epw_path)
 
-    #TODO calculate weather stats from EPW file
-    weather_stats = np.random.rand(8)
     DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list = calculate_weather_stats(epw_path)
+
+    weather_stat = np.vstack((DNI_weekly_peak_list, DHI_weekly_peak_list, DNI_weekly_avg_list, DHI_weekly_avg_list, DNI_max_avg_list, DHI_max_avg_list, DNI_min_avg_list, DHI_min_avg_list))
+    print(weather_stat[:,0])
+    print(weather_stat.shape)
+
+    weather_stats_real_slice = weather_stat[:,0]
+
+    #TODO: move the tiling back here and stick the correct weather stat slice to each week
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
-    canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats, 1, 1))
+    canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats_real_slice, 1, 1))
 
     #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
     attributes = np.load('C:\\Users\\phili\\Desktop\\sbe_att.npy')
@@ -637,8 +641,8 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     ### Stick attributes loaded from the file and those loaded from the canvas together for normalization of the canvas attributes ###########################
     canvas_attribute_axis = canvas_attribute[:,np.newaxis]
     comb_attribute = np.vstack((canvas_attribute_axis.T, data_attribute))
-    print(comb_attribute[0])
-    print(comb_attribute[1])
+    # print(comb_attribute[0])
+    # print(comb_attribute[1])
 
     # add generation flag to features
     data_feature, data_feature_outputs = add_gen_flag(
@@ -648,9 +652,9 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     data_attribute_max = np.amax(comb_attribute, axis=0)
 
     norm_attribute = normalize_attribute(comb_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
-    print(norm_attribute[0])
-    print(norm_attribute[1])
-    print(norm_attribute.shape)
+    # print(norm_attribute[0])
+    # print(norm_attribute[1])
+    # print(norm_attribute.shape)
 
     norm_canvas_attribute = norm_attribute[0]
 
@@ -686,7 +690,6 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     g_attr_d_coe = 1.0
     extra_checkpoint_freq = 1000
     num_packing = 1
-
 
     # config
     run_config = tf.ConfigProto()
