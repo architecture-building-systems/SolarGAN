@@ -475,45 +475,68 @@ def calculate_weather_stats(epw_path):
     DHI_weekly_peak_list = []
     DHI_weekly_avg_list = []
 
+    DNI_max_avg_list = []
+    DNI_min_avg_list = []
+    DHI_max_avg_list = []
+    DHI_min_avg_list = []
+
     #parse by week
     for w in range(52):
         DNI_weekly_average = 0
         DNI_weekly_peak = 0
-        DNI_max_average = 0
-        DNI_min_average = 0
 
         DHI_weekly_average = 0
         DHI_weekly_peak = 0
-        DHI_max_average = 0
-        DHI_min_average = 0
 
         dni_total = 0
         dhi_total = 0
+        dni_day_total = 0
+        dhi_day_total = 0
+
+        DNI_day_avg = []
+        DHI_day_avg = []
+
+        hour_count = 0
 
         week_hours = hours[w*168:w*168+168]
-        print(week_hours[0])
-
-        for hour in week_hours:
-            values = hour.split(",")
+        
+        for h in week_hours:
+            values = h.split(",")
             dni = int(values[14])
             dhi = int(values[15])
-            #print("DNI: " + str(dni) + ", DHI: " + str(dhi))
 
             dni_total += dni
             dhi_total += dhi
+            dni_day_total += dni
+            dhi_day_total += dhi
 
             DNI_weekly_peak = dni if DNI_weekly_peak < dni else DNI_weekly_peak
             DHI_weekly_peak = dhi if DHI_weekly_peak < dhi else DHI_weekly_peak
 
+            hour_count += 1
+            if (hour_count == 24):
+                hour_count = 0
+                DNI_day_avg.append(dni_day_total/24)
+                DHI_day_avg.append(dhi_day_total/24)
+                dni_day_total = 0
+                dhi_day_total = 0
+                print(DNI_day_avg)
+                print(DHI_day_avg)
+
         DNI_weekly_average = dni_total / 168
         DHI_weekly_average = dhi_total / 168
+
+        DNI_max_avg_list.append(max(DNI_day_avg))
+        DNI_min_avg_list.append(min(DNI_day_avg))
+        DHI_max_avg_list.append(max(DHI_day_avg))
+        DHI_min_avg_list.append(min(DHI_day_avg))
 
         DNI_weekly_avg_list.append(DNI_weekly_average)
         DNI_weekly_peak_list.append(DNI_weekly_peak)
         DHI_weekly_avg_list.append(DHI_weekly_average)
         DHI_weekly_peak_list.append(DHI_weekly_peak)
     
-    return DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list
+    return DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list
 
 
 @hops.component(
@@ -540,6 +563,10 @@ def calculate_weather_stats(epw_path):
         hs.HopsNumber("DNI weekly peak", "DNI weekly peak", "", hs.HopsParamAccess.LIST),
         hs.HopsNumber("DHI weekly average", "DHI weekly average", "", hs.HopsParamAccess.LIST),
         hs.HopsNumber("DHI weekly peak", "DHI weekly peak", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DNI weekly max avg", "DNI weekly max avg", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DNI weekly min avg", "DNI weekly min avg", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DHI weekly max avg", "DHI weekly max avg", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DHI weekly min avg", "DHI weekly min avg", "", hs.HopsParamAccess.LIST),
     ],
 ) 
 
@@ -563,7 +590,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     #TODO calculate weather stats from EPW file
     weather_stats = np.random.rand(8)
-    DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list = calculate_weather_stats(epw_path)
+    DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list = calculate_weather_stats(epw_path)
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
     canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats, 1, 1))
@@ -733,7 +760,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     previous_result = zurich_list
 
-    return zurich_list, DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list
+    return zurich_list, DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list
 
 if __name__ == "__main__":
     app.run(debug=True)
