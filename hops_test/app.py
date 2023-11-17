@@ -464,6 +464,58 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
         
     return feat_gt_all, feat_gen_all
 
+def calculate_weather_stats(epw_path):
+
+    epw = open(epw_path, 'r')
+    lines = epw.readlines()
+    hours = lines[8:]
+
+    DNI_weekly_peak_list = []
+    DNI_weekly_avg_list = []
+    DHI_weekly_peak_list = []
+    DHI_weekly_avg_list = []
+
+    #parse by week
+    for w in range(52):
+        DNI_weekly_average = 0
+        DNI_weekly_peak = 0
+        DNI_max_average = 0
+        DNI_min_average = 0
+
+        DHI_weekly_average = 0
+        DHI_weekly_peak = 0
+        DHI_max_average = 0
+        DHI_min_average = 0
+
+        dni_total = 0
+        dhi_total = 0
+
+        week_hours = hours[w*168:w*168+168]
+        print(week_hours[0])
+
+        for hour in week_hours:
+            values = hour.split(",")
+            dni = int(values[14])
+            dhi = int(values[15])
+            #print("DNI: " + str(dni) + ", DHI: " + str(dhi))
+
+            dni_total += dni
+            dhi_total += dhi
+
+            DNI_weekly_peak = dni if DNI_weekly_peak < dni else DNI_weekly_peak
+            DHI_weekly_peak = dhi if DHI_weekly_peak < dhi else DHI_weekly_peak
+
+        DNI_weekly_average = dni_total / 168
+        DHI_weekly_average = dhi_total / 168
+
+        DNI_weekly_avg_list.append(DNI_weekly_average)
+        DNI_weekly_peak_list.append(DNI_weekly_peak)
+        DHI_weekly_avg_list.append(DHI_weekly_average)
+        DHI_weekly_peak_list.append(DHI_weekly_peak)
+    
+    return DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list
+
+
 @hops.component(
     "/timeseries_gen",
     name="TimeSeriesGeneration",
@@ -480,14 +532,18 @@ def all_annual_batch (gt_feat_all,given_att_all,num,num_gen,site_i,renorm_factor
         hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point",hs.HopsParamAccess.ITEM),
         hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch",hs.HopsParamAccess.ITEM),
         hs.HopsNumber("Solar Declination", "solarDecl", "Declination of the sun",hs.HopsParamAccess.ITEM),
-        #hs.HopsNumber("Weather statistics", "weatherStats", "For DNI and DHI of each week: hourly peak and hourly average; hourly average of the max./min. day",hs.HopsParamAccess.LIST),
+        hs.HopsString("EPW File Path", "EPWfilePath", "Path to EPW file",hs.HopsParamAccess.ITEM),
     ],
     outputs=[
         hs.HopsNumber("Time series", "time series", "Generated time series of solar irradiation", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DNI weekly average", "DNI weekly average", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DNI weekly peak", "DNI weekly peak", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DHI weekly average", "DHI weekly average", "", hs.HopsParamAccess.LIST),
+        hs.HopsNumber("DHI weekly peak", "DHI weekly peak", "", hs.HopsParamAccess.LIST),
     ],
 ) 
 
-def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, month_index, solar_dec):
+def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, month_index, solar_dec, epw_path):
     global previous_result 
     
     if (run == 0):
@@ -495,17 +551,19 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     num_gen = int(num_gen)
     img_feat = list(img_feat)
-    print(img_feat)
-    print(lat)
-    print(long)
-    print(height)
-    print(x_norm)
-    print(y_norm)
-    print(month_index)
-    print(solar_dec)
-    # weather_stats = list(weather_stats)
-    # print(weather_stats)
+    # print(img_feat)
+    # print(lat)
+    # print(long)
+    # print(height)
+    # print(x_norm)
+    # print(y_norm)
+    # print(month_index)
+    # print(solar_dec)
+    # print(epw_path)
+
+    #TODO calculate weather stats from EPW file
     weather_stats = np.random.rand(8)
+    DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list = calculate_weather_stats(epw_path)
     
     #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
     canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats, 1, 1))
@@ -545,7 +603,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     #necessary inputs
     sample_len = 17
-    print(attributes.shape)
+
     # normalise data
     (data_feature, data_attribute, data_attribute_outputs, real_attribute_mask) = normalize_per_sample(features, attributes, data_feature_outputs, data_attribute_outputs)
 
@@ -554,7 +612,6 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     comb_attribute = np.vstack((canvas_attribute_axis.T, data_attribute))
     print(comb_attribute[0])
     print(comb_attribute[1])
-
 
     # add generation flag to features
     data_feature, data_feature_outputs = add_gen_flag(
@@ -568,7 +625,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     print(norm_attribute[1])
     print(norm_attribute.shape)
 
-    #TODO continue here with splitting of the normalized canvas attributes again
+    norm_canvas_attribute = norm_attribute[0]
 
     generator = DoppelGANgerGenerator(
         feed_back=True,
@@ -659,7 +716,7 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     site_i = 4
     site = site_list[site_i]
     #site_i_gt, site_i_gen = all_annual_batch(features_gt,norm_attribute,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs)
-    site_i_gt, site_i_gen = all_annual_batch(features_gt,norm_attribute,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs, canvas_attribute)
+    site_i_gt, site_i_gen = all_annual_batch(features_gt,norm_attribute,1,num_gen,site_i,data_attribute_max[48], gan, sample_len, data_feature_outputs, data_attribute_outputs, norm_canvas_attribute)
     site_i_gt_file = site+'_gt_feat_test.npy'
     site_i_gen_file = site+'_gen_feat_test.npy' 
     
@@ -674,10 +731,9 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     zurich_list = zurich_mean[0,:].tolist()
 
-    
     previous_result = zurich_list
 
-    return zurich_list
+    return zurich_list, DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list
 
 if __name__ == "__main__":
     app.run(debug=True)
