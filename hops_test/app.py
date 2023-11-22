@@ -386,20 +386,20 @@ def renormalize_per_sample(data_feature, data_attribute, data_feature_outputs,
 def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renorm_factor, gan, sample_len, data_feature_outputs, data_attribute_outputs, canvas_attribute):
     print(list_index)
     num_weeks = 52
-    print(given_att_all.shape)
+    #print(given_att_all.shape)
     
     train_sample_size = given_att_all.shape[0]
     index = 3*list_index*num_weeks+int(location_index*train_sample_size/5)
     # given_att = given_att_all[index:index+num_weeks,:-2]
     # given_att_tiles=np.tile(given_att,(num_gen,1))
-    # print("GIVEN_ATT")
-    # print(given_att.shape)
-    # print(given_att_tiles.shape)
+    #print("GIVEN_ATT")
+    #print(given_att.shape)
+    #print(given_att_tiles.shape)
 
-    #TODO temp canvas attribute tiling (52 times for each week of the year)
-    canvas_attribute_rep = np.tile(canvas_attribute[:-2],(52,1))
-    #tiling to repeat for the number of desired samples
-    canvas_att_tiles=np.tile(canvas_attribute_rep,(num_gen,1))
+    #tiling to repeat for the number of desired samples (and cut of the last two entries of each vector, these are added during normalization, we don't need them here)
+    canvas_att_tiles=np.tile(canvas_attribute[:,:-2],(num_gen,1))
+    print("NORMALIZED CANVAS ATTRIBUTE SHAPE AFTER TILING")
+    print(canvas_att_tiles.shape)
     
     length = int(gt_feat_all.shape[1] / sample_len)
     num_real_attribute=8
@@ -408,8 +408,6 @@ def gen_annual(gt_feat_all,given_att_all,list_index,num_gen,location_index,renor
                 num_gen*num_weeks)
     feature_input_noise = gan.gen_feature_input_noise(
                 num_gen*num_weeks, length)
-    
-    #print(feature_input_noise.shape)
 
     input_data = gan.gen_feature_input_data_free(
                 num_gen*num_weeks)
@@ -551,8 +549,8 @@ def calculate_weather_stats(epw_path):
         hs.HopsNumber("Height", "height", "z-Coordinate of the sensor point", hs.HopsParamAccess.ITEM),
         hs.HopsNumber("Surface Normal X", "surfaceNormalX", "x component of the surface normal vector given the facade sensor point",hs.HopsParamAccess.ITEM),
         hs.HopsNumber("Surface Normal Y", "surfaceNormalY", "y component of the surface normal vector given the facade sensor point",hs.HopsParamAccess.ITEM),
-        hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch",hs.HopsParamAccess.ITEM),
-        hs.HopsNumber("Solar Declination", "solarDecl", "Declination of the sun",hs.HopsParamAccess.ITEM),
+        #hs.HopsNumber("Monthly index", "monthIndex", " Monthly index of the weekly patch",hs.HopsParamAccess.ITEM),
+        hs.HopsNumber("Solar Declination", "solarDecl", "Declination of the sun",hs.HopsParamAccess.LIST),
         hs.HopsString("EPW File Path", "EPWfilePath", "Path to EPW file",hs.HopsParamAccess.ITEM),
     ],
     outputs=[
@@ -568,7 +566,7 @@ def calculate_weather_stats(epw_path):
     ],
 ) 
 
-def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, month_index, solar_dec, epw_path):
+def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, solar_dec, epw_path):
     global previous_result 
     
     if (run == 0):
@@ -576,28 +574,26 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
 
     num_gen = int(num_gen)
     img_feat = list(img_feat)
-    # print(img_feat)
-    # print(lat)
-    # print(long)
-    # print(height)
-    # print(x_norm)
-    # print(y_norm)
-    # print(month_index)
-    # print(solar_dec)
-    # print(epw_path)
+    solar_dec = list(solar_dec)
 
     DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list = calculate_weather_stats(epw_path)
-
     weather_stat = np.vstack((DNI_weekly_peak_list, DHI_weekly_peak_list, DNI_weekly_avg_list, DHI_weekly_avg_list, DNI_max_avg_list, DHI_max_avg_list, DNI_min_avg_list, DHI_min_avg_list))
-    print(weather_stat[:,0])
-    print(weather_stat.shape)
 
-    weather_stats_real_slice = weather_stat[:,0]
+    month_index = [1,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,4,5,5,5,5,6,6,6,6,7,7,7,7,7,8,8,8,8,9,9,9,9,10,10,10,10,10,11,11,11,11,12,12,12,12]
 
-    #TODO: move the tiling back here and stick the correct weather stat slice to each week
-    
-    #47 attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
-    canvas_attribute = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index, solar_dec, weather_stats_real_slice, 1, 1))
+    canvas_attribute_stack = []
+    #slice the weekly weather stats apart, stick them into their respective weekly attribute vector, then stack the attr vectors on top of each other
+    for i in range(52):
+        #47 (49) attributes: lat, long, height, 32 image features, surface X, surface Y, monthIndex, declination, 8 weather, two filler numbers to match the dimension to the processed attributes from the .npy file
+        one_week_attr = np.hstack((lat, long, height, img_feat, x_norm, y_norm, month_index[i], solar_dec[i], weather_stat[:,i], 1, 1))
+        if (i == 0):
+            canvas_attribute_stack = one_week_attr
+        else:
+            canvas_attribute_stack = np.vstack((canvas_attribute_stack, one_week_attr))
+
+    print("CANVAS ATTR SHAPE")
+    print(canvas_attribute_stack.shape)
+    np.save("canvas_attribute_stack.npy", canvas_attribute_stack)
 
     #attributes = np.load(os.path.join(dir_path,'sbe_att.npy'))
     attributes = np.load('C:\\Users\\phili\\Desktop\\sbe_att.npy')
@@ -639,10 +635,9 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     (data_feature, data_attribute, data_attribute_outputs, real_attribute_mask) = normalize_per_sample(features, attributes, data_feature_outputs, data_attribute_outputs)
 
     ### Stick attributes loaded from the file and those loaded from the canvas together for normalization of the canvas attributes ###########################
-    canvas_attribute_axis = canvas_attribute[:,np.newaxis]
-    comb_attribute = np.vstack((canvas_attribute_axis.T, data_attribute))
-    # print(comb_attribute[0])
-    # print(comb_attribute[1])
+    print("DATA ATTR SHAPE")
+    print(data_attribute.shape)
+    comb_attribute = np.vstack((canvas_attribute_stack, data_attribute))
 
     # add generation flag to features
     data_feature, data_feature_outputs = add_gen_flag(
@@ -652,11 +647,8 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, mo
     data_attribute_max = np.amax(comb_attribute, axis=0)
 
     norm_attribute = normalize_attribute(comb_attribute, data_attribute_outputs, data_attribute_min, data_attribute_max)
-    # print(norm_attribute[0])
-    # print(norm_attribute[1])
-    # print(norm_attribute.shape)
 
-    norm_canvas_attribute = norm_attribute[0]
+    norm_canvas_attribute = norm_attribute[0:52,:] #cut the canvas attributes off again
 
     generator = DoppelGANgerGenerator(
         feed_back=True,
