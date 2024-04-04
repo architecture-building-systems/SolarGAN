@@ -757,5 +757,186 @@ def timeseries_gen(run, num_gen, img_feat, lat, long, height, x_norm, y_norm, so
 
     return zurich_list, DNI_weekly_avg_list, DNI_weekly_peak_list, DHI_weekly_avg_list, DHI_weekly_peak_list, DNI_max_avg_list, DNI_min_avg_list, DHI_max_avg_list, DHI_min_avg_list
 
+def gen_pure_blk(w,h):
+
+        b = np.zeros((w,h), dtype=np.uint8)
+        g = np.zeros((w,h), dtype=np.uint8)
+        r = np.zeros((w,h), dtype=np.uint8)
+
+        blk = cv2.merge([b, g, r])
+        
+        return blk
+
+def np_discretize_to_order_labels(ar):
+    bins = np.array([-0.125,0.125, 0.375, 0.625, 0.875,1.125])
+    inds = np.digitize(ar, bins)
+    ar_discret = (inds-1)/4
+    
+    return ar_discret
+
+def To_Gray_Label_given_list(png_list,dir_out):
+    i=0
+    for pngfile in png_list: #rendered PNG path
+        img = Image.open(pngfile)
+        png_path = dir_path + "/cubemap/output.png"
+        img.save(png_path)
+        #read images
+
+        example=cv2.imread(png_path, cv2.IMREAD_COLOR)
+        #output_name = dir_out+input_name
+        output_name = dir_path + "/cubemap/gray1.png"
+
+        #k-means clustering
+        img_data = example / 255.0
+        img_data = img_data.reshape((-1, 3))
+
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,100000, 0.00001)
+        flags = cv2.KMEANS_RANDOM_CENTERS
+        img_data = img_data.astype(np.float32)
+        compactness, labels, centers = cv2.kmeans(img_data,5, None, criteria,10, flags)#number of clusters (classes: 5)
+
+        centers[:,:] = np.round(centers[:,:])
+        new_colors = centers[labels].reshape((-1, 3))
+
+        example_recolored = new_colors.reshape(example.shape) #recolored sample
+
+        #RGB map to grayscale map
+        import pandas as pd
+        w=example.shape[0]
+        palette = np.array([[0, 0, 0],[0, 1, 1],[0, 0, 1],[0, 1, 0],[1, 1, 1]]) #order: black edge, ground, opaque building, glazing, sky
+        matches = np.array([j for i in range(len(centers)) for j in range(len(palette)) if centers[i].tolist()==palette[j].tolist()]).reshape(-1,1)
+        labels_ordered = matches[labels].reshape((w,w))
+        labels_gray = np.array(labels_ordered*0.25)
+        gray_img = cv2.cvtColor(labels_gray.astype(np.float32), cv2.COLOR_GRAY2BGR)#grayscale sample
+
+        resized = cv2.resize(gray_img, (128,128), interpolation = cv2.INTER_NEAREST)#resze to 128*128
+        
+        print(output_name)
+        
+        cv2.imwrite(output_name,resized*256)
+
+        return output_name
+
+def fisheye2dual(w,h,dir_r,dir_s,dir_o):
+    
+    for pngfile in dir_r: #rendered PNG path
+        
+        #read images
+        
+        #input_name = str(pngref)[11:]
+        #pngfile = dir_s + input_name
+        #pngfile = "C:\\Users\\phili\\Documents\\GitHub\\SolarGAN\\hops_test\\gray1.png"
+        
+        example=cv2.imread(pngfile, cv2.IMREAD_COLOR)
+        #output_name = dir_o+input_name
+        output_name = dir_path + "/cubemap/gray2.png"
+       
+        blk1 = gen_pure_blk(128,128)
+        out=np.hstack([blk1, example])
+        cv2.imwrite('test.PNG', out)
+
+        source = vrProjector.SideBySideFisheyeProjection()
+        source.loadImage("test.PNG")
+
+        #source.set_use_bilinear(True)
+
+        out = vrProjector.CubemapProjection()
+        out.initImages(w,h)
+        out.reprojectToThis(source)
+        #out.saveImages("cubemap/left.png", "cubemap/front.png", "cubemap/right.png", "cubemap/blk.png", "cubemap/top.png", "cubemap/bottom.png")
+        out.saveImages("hops_test/cubemap/left.png", "hops_test/cubemap/front.png", "hops_test/cubemap/right.png", "hops_test/cubemap/blk.png", "hops_test/cubemap/top.png", "hops_test/cubemap/bottom.png")
+
+        #rotate_clockwise = cv2.getRotationMatrix2D((0,0), -90, 1.0)
+        #rotate_counterclock = cv2.getRotationMatrix2D((0,0), 90, 1.0)
+
+        front=cv2.imread("hops_test/cubemap/front.png", cv2.IMREAD_COLOR)
+        left=cv2.imread("hops_test/cubemap/left.png", cv2.IMREAD_COLOR)
+        right=cv2.imread("hops_test/cubemap/right.png", cv2.IMREAD_COLOR)
+
+        top2rotate=cv2.imread("hops_test/cubemap/top.png", cv2.IMREAD_COLOR)
+        #top = np.rot90(top2rotate,1) ##uncheck if there is bug
+        top = np.rot90(top2rotate,-1) ##check if there is bug
+
+        bottom2rotate=cv2.imread("hops_test/cubemap/bottom.png", cv2.IMREAD_COLOR)
+        bottom = np.rot90(bottom2rotate,1)
+
+        blk2 = gen_pure_blk(w,h)
+
+        col_left  = np.vstack([blk2, left, blk2])
+        col_mid = np.vstack([top, front, bottom])
+        col_right  = np.vstack([blk2, right, blk2])
+
+        img = np.hstack([col_left, col_mid, col_right])
+
+        img_cropped = img[138:629, 138:629]
+
+        resized = cv2.resize(img_cropped, (128,128), interpolation = cv2.INTER_AREA)#resze to 128*128
+
+        print(output_name)
+
+        cv2.imwrite(output_name, resized)
+
+        return output_name
+
+def Cube_to_Gray_Label(dir_in,dir_out):
+     for pngfile in dir_in: #rendered PNG path
+        
+        #read images
+        #input_name = str(pngfile)[15:]
+        example=cv2.imread(pngfile, cv2.IMREAD_COLOR)
+        output_name = dir_path + "/cubemap/gray3.png"
+
+        #k-means clustering
+        img_data = example / 255.0
+        img_data = img_data.reshape((-1, 3))
+
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,100000, 0.00001)
+        flags = cv2.KMEANS_RANDOM_CENTERS
+        img_data = img_data.astype(np.float32)
+        compactness, labels, centers = cv2.kmeans(img_data,5, None, criteria,10, flags)#number of clusters (classes: 5)
+
+        centers[:,:] = np.round(centers[:,:])
+        new_colors = centers[labels].reshape((-1, 3))
+
+        example_recolored = new_colors.reshape(example.shape) #recolored sample
+
+        #RGB map to grayscale map
+        import pandas as pd
+        w=example.shape[0]
+        palette = np.array([[0, 0, 0],[0, 1, 1],[0, 0, 1],[0, 1, 0],[1, 1, 1]]) #order: black edge, ground, opaque building, glazing, sky
+        matches = np.array([j for i in range(len(centers)) for j in range(len(palette)) if centers[i].tolist()==palette[j].tolist()]).reshape(-1,1)
+        labels_ordered = matches[labels].reshape((w,w))
+        labels_gray = np.array(labels_ordered*0.25)
+        gray_img = cv2.cvtColor(labels_gray.astype(np.float32), cv2.COLOR_GRAY2BGR)#grayscale sample
+
+        resized = cv2.resize(gray_img, (128,128), interpolation = cv2.INTER_AREA)#resze to 128*128
+        
+        re_dig = np_discretize_to_order_labels(resized)
+
+        cv2.imwrite(output_name,re_dig*256)
+        print(output_name)
+        return output_name
+
+@hops.component(
+    "/image_processing",
+    name="Image Processing",
+    description="Processes fishey renders for use in SolarGAN",
+    icon="",
+    inputs=[
+        hs.HopsString("Input path", "input path", "Input Image Path", access=hs.HopsParamAccess.ITEM),
+    ],
+    outputs=[
+        hs.HopsString("Output path 1", "Output path 1", "Output Image Path 1", access=hs.HopsParamAccess.ITEM),
+        hs.HopsString("Output path 2", "Output path 2", "Output Image Path 2", access=hs.HopsParamAccess.ITEM),
+    ],
+)
+def image_processing(input_path):
+
+    path1 = To_Gray_Label_given_list([input_path],"zh_gray/zh_")
+    path2 = fisheye2dual(256,256,[path1],"zh/","zh_cube/zh_cube_")
+    path3 = Cube_to_Gray_Label([path2],"zh_graycube/zh_graycube_")
+    return path2, path3
+
+
 if __name__ == "__main__":
     app.run(debug=True)
