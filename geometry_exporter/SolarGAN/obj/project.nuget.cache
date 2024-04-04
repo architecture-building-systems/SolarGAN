@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "eWOHgJWOKbwYqZAzhA+arFy5oWKrmhuJphb60KZ1lV3srEnRBQMazA0O/Nl+RXyuF92Mfj3eObcXvdAhvQpJKA==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\phili\\Documents\\GitHub\\SolarGAN\\geometry_exporter\\SolarGAN\\SolarGAN.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\phili\\.nuget\\packages\\grasshopper\\7.13.21348.13001\\grasshopper.7.13.21348.13001.nupkg.sha512",
+    "C:\\Users\\phili\\.nuget\\packages\\rhinocommon\\7.13.21348.13001\\rhinocommon.7.13.21348.13001.nupkg.sha512"
+  ],
+  "logs": []
+}

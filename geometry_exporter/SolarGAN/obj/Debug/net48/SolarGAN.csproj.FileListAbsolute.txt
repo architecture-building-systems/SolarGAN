@@ -1,0 +1,9 @@
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\bin\Debug\net48\SolarGAN.gha
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\bin\Debug\net48\SolarGAN.pdb
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.csproj.AssemblyReference.cache
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.AssemblyInfoInputs.cache
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.AssemblyInfo.cs
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.csproj.CoreCompileInputs.cache
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.gha
+C:\Users\phili\Documents\GitHub\SolarGAN\geometry_exporter\SolarGAN\obj\Debug\net48\SolarGAN.pdb
