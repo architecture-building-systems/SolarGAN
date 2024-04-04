@@ -15,7 +15,7 @@ namespace SolarGAN
             public RadianceGeomExporter()
               : base("Radiance Geometry Exporter", "RadianceGeometryExporter",
                   "Export geometry of Breps to Radiance rad file",
-                  "[hive]", "IO")
+                  "SolarGAN", "Geometry")
             {
             }
 
