@@ -843,21 +843,21 @@ def fisheye2dual(w,h,dir_r,dir_s,dir_o):
         out = vrProjector.CubemapProjection()
         out.initImages(w,h)
         out.reprojectToThis(source)
-        #out.saveImages("cubemap/left.png", "cubemap/front.png", "cubemap/right.png", "cubemap/blk.png", "cubemap/top.png", "cubemap/bottom.png")
-        out.saveImages("hops_test/cubemap/left.png", "hops_test/cubemap/front.png", "hops_test/cubemap/right.png", "hops_test/cubemap/blk.png", "hops_test/cubemap/top.png", "hops_test/cubemap/bottom.png")
+        out.saveImages("cubemap/left.png", "cubemap/front.png", "cubemap/right.png", "cubemap/blk.png", "cubemap/top.png", "cubemap/bottom.png")
+        #out.saveImages("hops_test/cubemap/left.png", "hops_test/cubemap/front.png", "hops_test/cubemap/right.png", "hops_test/cubemap/blk.png", "hops_test/cubemap/top.png", "hops_test/cubemap/bottom.png")
 
         #rotate_clockwise = cv2.getRotationMatrix2D((0,0), -90, 1.0)
         #rotate_counterclock = cv2.getRotationMatrix2D((0,0), 90, 1.0)
 
-        front=cv2.imread("hops_test/cubemap/front.png", cv2.IMREAD_COLOR)
-        left=cv2.imread("hops_test/cubemap/left.png", cv2.IMREAD_COLOR)
-        right=cv2.imread("hops_test/cubemap/right.png", cv2.IMREAD_COLOR)
+        front=cv2.imread("cubemap/front.png", cv2.IMREAD_COLOR)
+        left=cv2.imread("cubemap/left.png", cv2.IMREAD_COLOR)
+        right=cv2.imread("cubemap/right.png", cv2.IMREAD_COLOR)
 
-        top2rotate=cv2.imread("hops_test/cubemap/top.png", cv2.IMREAD_COLOR)
+        top2rotate=cv2.imread("cubemap/top.png", cv2.IMREAD_COLOR)
         #top = np.rot90(top2rotate,1) ##uncheck if there is bug
         top = np.rot90(top2rotate,-1) ##check if there is bug
 
-        bottom2rotate=cv2.imread("hops_test/cubemap/bottom.png", cv2.IMREAD_COLOR)
+        bottom2rotate=cv2.imread("cubemap/bottom.png", cv2.IMREAD_COLOR)
         bottom = np.rot90(bottom2rotate,1)
 
         blk2 = gen_pure_blk(w,h)
