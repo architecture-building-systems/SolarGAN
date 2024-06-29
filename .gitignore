@@ -3,6 +3,4 @@ hops_test/outputs/idgan5/chkpts/model_00499999.pt
 hops_test/*.PNG
 hops_test/cubemap/
 zurich_gen_mean_*.txt
-hops_test/gan/__pychache__/*
-hops_test/gan_training/__pychache__/*
-hops_test/vrProjector_master/vrProjector/__pychache__/*
+*.pyc
