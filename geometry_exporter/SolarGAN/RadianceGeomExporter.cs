@@ -24,7 +24,7 @@ namespace SolarGAN
 
             protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
             {
-                pManager.AddTextParameter("Radiance bin folder location", "Rad bin", "Location of the Radiance bin folder on disc", GH_ParamAccess.item);
+                pManager.AddTextParameter("Radiance install folder location", "Rad install", "Location of the Radiance install folder on disc", GH_ParamAccess.item);
                 pManager.AddBrepParameter("Building Brep collection", "Buildings", "Collection of all building Breps", GH_ParamAccess.list);
                 pManager.AddBrepParameter("Windows collection", "Windows", "Collection of all windows", GH_ParamAccess.list);
                 pManager.AddPointParameter("Camera position", "Cam position", "Position of the camera viewpoint", GH_ParamAccess.item);
@@ -41,7 +41,7 @@ namespace SolarGAN
             protected override void SolveInstance(IGH_DataAccess DA)
             {
                 var exe_path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var rad_files_path = exe_path; //+ "\\radiance";
+                var rad_files_path = exe_path; //+ "\\radiance";
                 var rad_files_path_slash = rad_files_path.Replace("\\", "/");
 
                 //string exampleFolder = @"examples";
@@ -233,8 +233,8 @@ namespace SolarGAN
             internal static void RunRadiance(string folder, string octree, string render)
             {
                 ProcessStartInfo cmdStartInfo = new ProcessStartInfo();
-                cmdStartInfo.WorkingDirectory = folder;
-                cmdStartInfo.EnvironmentVariables["RAYPATH"] = "C:\\Radiance\\lib";
+                cmdStartInfo.WorkingDirectory = folder + "\\bin";
+                cmdStartInfo.EnvironmentVariables["RAYPATH"] = folder + "\\lib";
                 cmdStartInfo.FileName = @"C:\Windows\System32\cmd.exe";
                 //cmdStartInfo.RedirectStandardOutput = true;
                 //cmdStartInfo.RedirectStandardError = true;
