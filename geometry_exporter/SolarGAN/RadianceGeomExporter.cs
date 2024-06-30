@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows.Media.Media3D;
 using System.Security.Policy;
+using System.Reflection;
 
 namespace SolarGAN
 {
@@ -34,17 +35,22 @@ namespace SolarGAN
             {
                 pManager.AddPointParameter("Vertex collection", "vertexes", "Collection of all vertexes", GH_ParamAccess.list);
                 pManager.AddTextParameter("Output path", "outpath", "Path to rendered output image", GH_ParamAccess.list);
+                pManager.AddTextParameter("Exe path", "exepath", "Path to executing assembly", GH_ParamAccess.list);
             }
 
             protected override void SolveInstance(IGH_DataAccess DA)
             {
-                string folder = @"C:\Radiance\bin\";
-                string exampleFolder = @"examples";
+                var exe_path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            var rad_files_path = exe_path; //+ "\\radiance";
+                var rad_files_path_slash = rad_files_path.Replace("\\", "/");
+
+                //string exampleFolder = @"examples";
                 string fileName = "test.rad";
 
+                string folder = "";
                 DA.GetData(0, ref folder);
 
-                string fullPath = folder + exampleFolder + "\\" + fileName;
+                string fullPath = rad_files_path_slash + "\\" + fileName;
 
                 var breps = new List<Brep>();
                 if (!DA.GetDataList(1, breps)) return;
@@ -160,13 +166,14 @@ namespace SolarGAN
                 //rpict -vta -vh 180 -vv 180 -vp 0 0 2.5 -vd 0 1 0 -vu 0 0 1 -ab 0 -av 1 1 1 octree.oct | ra_tiff -b - output.tif
                 //+ exampleFolder + "/sky_overcast.mat " + exampleFolder + "/sky.rad "
 
-                string octreeCommand = @"oconv -f " + exampleFolder + "/sky_overcast.mat " + exampleFolder + "/sky.rad " + exampleFolder + "/test.rad > " + exampleFolder + "/octree.oct";
-                string renderCommand = @"rpict -x 512 -y 512 -vta -vh 180 -vv 180 -vp " + camPosition.X + " " + camPosition.Y + " " + camPosition.Z + " -vd " + camDirection.X + " " + camDirection.Y + " " + camDirection.Z + " -vu 0 0 1 -ab 0 -av 1 1 1 examples/octree.oct | ra_tiff - examples/output.tif";
+                string octreeCommand = @"oconv -f " + rad_files_path_slash + "/sky_overcast.mat " + rad_files_path_slash + "/sky.rad " + rad_files_path_slash + "/test.rad > " + rad_files_path_slash + "/octree.oct";
+                string renderCommand = @"rpict -x 512 -y 512 -vta -vh 180 -vv 180 -vp " + camPosition.X + " " + camPosition.Y + " " + camPosition.Z + " -vd " + camDirection.X + " " + camDirection.Y + " " + camDirection.Z + " -vu 0 0 1 -ab 0 -av 1 1 1 " + rad_files_path_slash + "/octree.oct | ra_tiff - " + rad_files_path_slash + "/output.tif";
 
                 RunRadiance(folder, octreeCommand, renderCommand);
 
                 //DA.SetDataList(0, vertexes);
-                DA.SetData(1, folder + exampleFolder + "\\output.tif");
+                DA.SetData(1, rad_files_path_slash + "\\output.tif");
+                DA.SetData(2, rad_files_path);
 
             }
 
@@ -240,7 +247,6 @@ namespace SolarGAN
                 cmdProcess.EnableRaisingEvents = true;
                 cmdProcess.Start();
 
-                //cmdProcess.StandardInput.WriteLine("cd " + folder);
                 cmdProcess.StandardInput.WriteLine(octree);
                 cmdProcess.StandardInput.WriteLine(render);
                 cmdProcess.StandardInput.WriteLine("exit");

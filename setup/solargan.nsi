@@ -59,22 +59,24 @@ Section "SolarGAN" Base_Installation_Section
     # first, delete any "old" files (some of them have been renamed...)
 
     Delete /REBOOTOK "$INSTDIR\SolarGAN.gha"
-
+    Delete /REBOOTOK "$INSTDIR\octree.oct"
+    Delete /REBOOTOK "$INSTDIR\output.tif"
+    Delete /REBOOTOK "$INSTDIR\sky.rad"
+    Delete /REBOOTOK "$INSTDIR\sky_overcast.mat"
+    Delete /REBOOTOK "$INSTDIR\test.rad"
 
     # next, copy the "new files"
 
     # SolarGAN and dependencies
-    File /oname=SolarGAN.gha "..\geometry_exporter\SolarGAN\bin\Debug\net48\SolarGAN.gha"
-    
-    #IfFileExists "$INSTDIR\..\ProvingGround.Conduit.gha" 0 file_not_found
-    #goto end_of_block
-    #file_not_found:
-    #File "ProvingGround.Conduit.gha"
-    #end_of_block:     
+    File /oname=SolarGAN.gha "..\geometry_exporter\SolarGAN\bin\Debug\net48\SolarGAN.gha"  
+    File ".\radiance\octree.oct"
+    File ".\radiance\sky.rad"
+    File ".\radiance\sky_overcast.mat"
+    File ".\radiance\test.rad"
 
 SectionEnd
 
-;Section "Conduit" Conduit_Installation_Section
+;Section "Radiance" Radiance_Installation_Section
 
 ; SectionIn RO
 
@@ -84,12 +86,12 @@ SectionEnd
 ;     File "ProvingGround.Conduit.gha"
 ;     end_of_block:
 
-; SectionEnd
+;SectionEnd
 
 LangString DESC_Section1 ${LANG_ENGLISH} "Installs the SolarGAN plugin for Grasshopper."
-;LangString DESC_Section2 ${LANG_ENGLISH} "Installs the Conduit plugin by Proving Ground Apps. Visit https://apps.proving$\nground.io/conduit/ for more information. If Conduit is already installed at the default location, this installation will be skipped."
+;LangString DESC_Section2 ${LANG_ENGLISH} "Install Radiance. Visit https://apps.proving$\nground.io/conduit/ for more information."
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${Base_Installation_Section} $(DESC_Section1)
-  ; !insertmacro MUI_DESCRIPTION_TEXT ${Conduit_Installation_Section} $(DESC_Section2)
+  ;!insertmacro MUI_DESCRIPTION_TEXT ${Conduit_Installation_Section} $(DESC_Section2)
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
